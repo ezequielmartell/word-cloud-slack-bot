@@ -1,6 +1,6 @@
 FROM python:3.10-slim-buster
 
-EXPOSE 3000
+EXPOSE 3002
 
 ENV PYTHONUNBUFFERED 1
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir -r /requirements.txt
 WORKDIR /app
 COPY . /app
 
-RUN python3 main.py
+# RUN python3 main.py
 # RUN chmod +x ./entrypoint.sh
 
 # COPY . .

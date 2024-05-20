@@ -12,13 +12,13 @@ from collections import Counter
 
 load_dotenv()
 
-user_auth_url = "https://finer-yak-visually.ngrok-free.app/slack/install"
+user_auth_url = "https://wordcloudbot.ezdoes.xyz/slack/install"
 
 oauth_settings = OAuthSettings(
     client_id=os.environ["SLACK_CLIENT_ID"],
     client_secret=os.environ["SLACK_CLIENT_SECRET"],
-    scopes=["commands"],  # "channels:history", "files:write"],
-    user_scopes=["chat:write", "files:write", "channels:history", "users:read"],
+    scopes=["commands", "channels:history", "files:write", "users:read"],
+    # user_scopes=["chat:write", "files:write", "channels:history", "users:read"],
     installation_store=FileInstallationStore(base_dir="./data/installations"),
     state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="./data/states")
 )
@@ -150,4 +150,4 @@ def handle_slash_command(ack, body, say, context, respond):
 
 # Ready? Start your app!
 if __name__ == "__main__":
-    app.start(port=int(os.environ.get("PORT", 3000)))
+    app.start(port=int(os.environ.get("PORT", 3002)))
