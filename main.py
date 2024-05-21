@@ -1,7 +1,5 @@
 import os
 from slack_bolt.oauth.oauth_settings import OAuthSettings
-from slack_sdk.oauth.installation_store import FileInstallationStore
-from slack_sdk.oauth.state_store import FileOAuthStateStore
 from slack_bolt import App
 from dotenv import load_dotenv
 import requests
@@ -9,24 +7,69 @@ from io import BytesIO
 from wordcloud import WordCloud
 import datetime
 from collections import Counter
+from slack_sdk.oauth.installation_store.sqlalchemy import SQLAlchemyInstallationStore
+from slack_sdk.oauth.state_store.sqlalchemy import SQLAlchemyOAuthStateStore
+import sqlalchemy
+from sqlalchemy.engine import Engine
+from flask import Flask, request
+from slack_bolt.adapter.flask import SlackRequestHandler
+
 
 load_dotenv()
 
 user_auth_url = "https://wordcloudbot.ezdoes.xyz/slack/install"
 
-oauth_settings = OAuthSettings(
-    client_id=os.environ["SLACK_CLIENT_ID"],
-    client_secret=os.environ["SLACK_CLIENT_SECRET"],
-    scopes=["commands", "channels:history", "files:write", "users:read"],
-    # user_scopes=["chat:write", "files:write", "channels:history", "users:read"],
-    installation_store=FileInstallationStore(base_dir="./data/installations"),
-    state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="./data/states")
+db_user=os.environ["DB_USER"]
+db_pass=os.environ["DB_PASSWORD"]
+database_url = f"postgresql://{db_user}:{db_pass}@word-cloud-db/slackapp"
+
+bot_scopes = ["commands", "channels:history", "files:write", "users:read"]
+client_id, client_secret, signing_secret = (
+    os.environ["SLACK_CLIENT_ID"],
+    os.environ["SLACK_CLIENT_SECRET"],
+    os.environ["SLACK_SIGNING_SECRET"],
 )
 
-app = App(
-    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
-    oauth_settings=oauth_settings
+engine: Engine = sqlalchemy.create_engine(database_url)
+installation_store = SQLAlchemyInstallationStore(
+    client_id=client_id,
+    engine=engine,
 )
+oauth_state_store = SQLAlchemyOAuthStateStore(
+    expiration_seconds=120,
+    engine=engine,
+)
+
+try:
+    engine.connect("select count(*) from slack_bots")
+except Exception as e:
+    installation_store.metadata.create_all(engine)
+    oauth_state_store.metadata.create_all(engine)
+
+app = App(
+    signing_secret=signing_secret,
+    installation_store=installation_store,
+    oauth_settings=OAuthSettings(
+        scopes=bot_scopes,
+        client_id=client_id,
+        client_secret=client_secret,
+        state_store=oauth_state_store,
+    ),
+)
+
+# oauth_settings = OAuthSettings(
+#     client_id=os.environ["SLACK_CLIENT_ID"],
+#     client_secret=os.environ["SLACK_CLIENT_SECRET"],
+#     scopes=["commands", "channels:history", "files:write", "users:read"],
+#     # user_scopes=["chat:write", "files:write", "channels:history", "users:read"],
+#     installation_store=FileInstallationStore(base_dir="./data/installations"),
+#     state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="./data/states")
+# )
+
+# app = App(
+#     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
+#     oauth_settings=oauth_settings
+# )
 
 
 def create_word_cloud(text):
@@ -46,7 +89,7 @@ def handle_slash_command(ack, body, say, context, respond):
     text = body.get('text')
     current_time = datetime.datetime.now()
     time_stamp = current_time.timestamp()
-    print(context)
+    # print(context)
 
     if text == "usernames":
         # print(context)
@@ -71,7 +114,7 @@ def handle_slash_command(ack, body, say, context, respond):
         for userid in cloud_users:
             user = cache.get(userid)
             if user is None:
-                print(f"userid: {userid}")
+                # print(f"userid: {userid}")
                 user = app.client.users_info(
                     token=bot_token,
                     user=userid
@@ -85,7 +128,7 @@ def handle_slash_command(ack, body, say, context, respond):
             else:
                 usernames.append(user)
 
-        print(usernames)
+        # print(usernames)
         word_cloud_dict = Counter(usernames)
         # word_cloud = create_word_cloud(word_cloud_dict)
         wordcloud = WordCloud(width=800, height=400,
@@ -123,7 +166,7 @@ def handle_slash_command(ack, body, say, context, respond):
             limit=100
         )
         messages = messages['messages']
-        print(messages)
+        # print(messages)
         cloud_text = ''
         for message in messages:
             if message.get('type') == "message":
@@ -146,6 +189,25 @@ def handle_slash_command(ack, body, say, context, respond):
             files=[{"id": external_upload['file_id']}],
             initial_comment=""
         )
+
+
+flask_app = Flask(__name__)
+handler = SlackRequestHandler(app)
+
+
+@flask_app.route("/slack/events", methods=["POST"])
+def slack_events():
+    return handler.handle(request)
+
+
+@flask_app.route("/slack/install", methods=["GET"])
+def install():
+    return handler.handle(request)
+
+
+@flask_app.route("/slack/oauth_redirect", methods=["GET"])
+def oauth_redirect():
+    return handler.handle(request)
 
 
 # Ready? Start your app!

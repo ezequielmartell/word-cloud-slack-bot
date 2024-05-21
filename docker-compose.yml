@@ -1,7 +1,7 @@
 services:
   word-cloud-bot:
     build: .
-    command: python3 main.py
+    command: gunicorn --workers=2 main:flask_app -b 0.0.0.0:3002
     volumes:
         - .:/code
     ports:
@@ -16,9 +16,10 @@ services:
     expose:
       - 5432
     volumes:
-            - postgres_data:/var/lib/postgresql/data/
+            - word_cloud_postgres_data:/var/lib/postgresql/data/
     environment:
-      POSTGRES_PASSWORD: "postgres"
-      POSTGRES_DB: "slack-bot"
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: "slackapp"
 volumes:
-  postgres_data:
+  word_cloud_postgres_data:

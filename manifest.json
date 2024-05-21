@@ -12,7 +12,7 @@
                 "command": "/wordcloud",
                 "url": "https://wordcloudbot.ezdoes.xyz/slack/events",
                 "description": "Creates a word cloud with in the called channel",
-                "usage_hint": "[phrase][blank for usernames]",
+                "usage_hint": "[usernames][blank for last 100 messages text]",
                 "should_escape": true
             }
         ]
